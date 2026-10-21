@@ -6,15 +6,22 @@ workflows:
     integrations:
       app_store_connect: Codemagic
     environment:
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: com.cardifyy.app.myWebviewApp
+      vars:
+        BUNDLE_ID: "com.cardifyy.app.myWebviewApp" # Or "com.cardifyy.app.myWebviewApp" — must match Apple Portal!
+        APP_STORE_APPLE_ID: 6825446619 # Your 10-digit Apple ID from App Store Connect
       flutter: stable
       xcode: latest
       cocoapods: default
     scripts:
-      - name: Set up code signing settings on Xcode project
+      - name: Initialize Keychain & Auto-Create Apple Certificate + Profile
         script: |
+          keychain initialize
+          openssl genrsa -out /tmp/cert_key.pem 2048
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --type IOS_APP_STORE \
+            --certificate-key=@file:/tmp/cert_key.pem \
+            --create
+          keychain add-certificates
           xcode-project use-profiles
       - name: Get Flutter packages
         script: |
