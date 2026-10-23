@@ -16,12 +16,12 @@ class MyWebViewApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'My App',
+      title: 'TCG Cardify',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0A84FF)),
         useMaterial3: true,
       ),
-      home: const WebViewShell(initialUrl: 'https://yourwebsite.com'),
+      home: const WebViewShell(initialUrl: 'https://tcg-binder-portfolio-qesd.bolt.host/'),
     );
   }
 }
