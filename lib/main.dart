@@ -21,7 +21,9 @@ class MyWebViewApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0A84FF)),
         useMaterial3: true,
       ),
-      home: const WebViewShell(initialUrl: 'https://tcg-binder-portfolio-qesd.bolt.host/'),
+      home: const WebViewShell(
+        initialUrl: 'https://tcg-binder-portfolio-qesd.bolt.host/',
+      ),
     );
   }
 }
@@ -47,7 +49,18 @@ class _WebViewShellState extends State<WebViewShell> {
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setNavigationDelegate(
         NavigationDelegate(
-          onProgress: (p) => setState(() => _progress = p),
+          onProgress: (p) {
+            setState(() => _progress = p);
+            if (p >= 60) {
+              _hideSubscriptionUi();
+            }
+          },
+          onPageFinished: (url) {
+            _hideSubscriptionUi();
+          },
+          onUrlChange: (change) {
+            _hideSubscriptionUi();
+          },
           onWebResourceError: (error) {
             if (error.isForMainFrame ?? false) {
               setState(() => _isOffline = true);
@@ -55,18 +68,66 @@ class _WebViewShellState extends State<WebViewShell> {
           },
           onNavigationRequest: (request) async {
             final uri = Uri.parse(request.url);
-            // Open tel:, mailto:, or external social links in native iOS apps
+            // Open tel:, mailto:, or external social links in native apps
             if (!['http', 'https'].contains(uri.scheme)) {
               if (await canLaunchUrl(uri)) {
                 await launchUrl(uri, mode: LaunchMode.externalApplication);
               }
               return NavigationDecision.prevent;
             }
+
+            // Block external web checkout/payment pages on both Android & iOS
+            final lowerUrl = request.url.toLowerCase();
+            if (lowerUrl.contains('stripe.com') ||
+                lowerUrl.contains('/checkout') ||
+                lowerUrl.contains('/billing')) {
+              return NavigationDecision.prevent;
+            }
+
             return NavigationDecision.navigate;
           },
         ),
       )
       ..loadRequest(Uri.parse(widget.initialUrl));
+  }
+
+  Future<void> _hideSubscriptionUi() async {
+    const jsCode = '''
+      (function() {
+        const TARGET_SELECTORS = [
+          'div[class*="rounded-2xl"][class*="border-amber-500/30"][class*="from-amber-500/10"][class*="to-orange-500/10"]',
+          '[class="rounded-lg border text-card-foreground shadow-sm border-border bg-card relative overflow-hidden"]'
+        ].join(', ');
+
+        // 1. Inject persistent CSS rule so neither card flashes on screen
+        const styleId = 'cardify-hide-sub-ui';
+        if (!document.getElementById(styleId)) {
+          const style = document.createElement('style');
+          style.id = styleId;
+          style.textContent = TARGET_SELECTORS + ' { display: none !important; visibility: hidden !important; }';
+          (document.head || document.documentElement).appendChild(style);
+        }
+
+        // 2. Directly hide any rendered instances in the DOM
+        function hideSubscriptionCards() {
+          document.querySelectorAll(TARGET_SELECTORS).forEach(function(el) {
+            el.style.setProperty('display', 'none', 'important');
+          });
+        }
+
+        hideSubscriptionCards();
+
+        // 3. Re-apply automatically when React switches routes or opens modals
+        if (!window.__cardifySubObserver) {
+          window.__cardifySubObserver = new MutationObserver(hideSubscriptionCards);
+          if (document.body) {
+            window.__cardifySubObserver.observe(document.body, { childList: true, subtree: true });
+          }
+        }
+      })();
+    ''';
+
+    await _controller.runJavaScript(jsCode);
   }
 
   Future<void> _checkConnectivity() async {
