@@ -6,6 +6,8 @@ workflows:
     integrations:
       app_store_connect: Codemagic
     environment:
+      groups:
+        - app_store_creds
       vars:
         BUNDLE_ID: "com.cardifyy.app.myWebviewApp"
         APP_STORE_APPLE_ID: 6825446619
@@ -16,10 +18,9 @@ workflows:
       - name: Initialize Keychain & Fetch Apple Signing Files
         script: |
           keychain initialize
-          openssl genrsa -out /tmp/cert_key.pem 2048
           app-store-connect fetch-signing-files "$BUNDLE_ID" \
             --type IOS_APP_STORE \
-            --certificate-key=@file:/tmp/cert_key.pem \
+            --certificate-key=@env:CERTIFICATE_PRIVATE_KEY \
             --create
           keychain add-certificates
 
@@ -33,7 +34,6 @@ workflows:
 
       - name: Prepare Xcode project & apply code signing profiles
         script: |
-          # Let Flutter complete any project.pbxproj / UIScene / SPM migrations BEFORE applying signing
           flutter build ios --config-only --release --no-codesign
           xcode-project use-profiles
 
